@@ -1,0 +1,13 @@
+[package]
+name = "libertyd"
+version = "0.1.0"
+edition = "2021"
+description = "Démon d'intelligence système de Liberty — boucle de décision (prototype)"
+
+[[bin]]
+name = "libertyd"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true

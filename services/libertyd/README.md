@@ -16,3 +16,22 @@ qui :
 visible et révocable.
 
 Statut : 🌱 conception (Phase 4 de la roadmap).
+
+## Prototype exécutable — la boucle de décision
+
+Un premier prototype, sans dépendance, montre déjà le cœur de la vision :
+l'inversion (l'IA initie), les niveaux d'autonomie réglables, la règle
+« réversible + local → silencieux », les capacités comme garde-fou, le
+jugement calibré (consulter dans le doute) et le journal transparent.
+
+```sh
+cargo run --manifest-path services/libertyd/Cargo.toml
+```
+
+Il simule six situations détectées par l'IA, sous deux profils d'autonomie
+(« Prudent » et « Confiance »), et montre comment la décision change — tout
+en gardant la sécurité invariante (la télémétrie reste bloquée faute de
+capacité réseau, même à 99 % de confiance).
+
+Voir [`src/main.rs`](src/main.rs) : la fonction `decide()` concentre toute la
+philosophie de Liberty.

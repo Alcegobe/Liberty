@@ -40,12 +40,17 @@ vérifiables.
 **Démontrable :** bureau épuré qui s'affiche et lance une app simple.
 
 ## Phase 4 — `libertyd`, la couche IA
+- [x] **Prototype de la boucle de décision** (inversion, niveaux d'autonomie,
+      règle réversible/local, capacités, jugement calibré, journal). Voir
+      `services/libertyd/`.
 - [ ] Service `libertyd` avec runtime d'inférence local (modèle léger).
 - [ ] Barre universelle → langage naturel → action système simple
       (ex. « ouvre le dossier Documents », « règle la luminosité »).
-- [ ] Modèle de capacités appliqué aux actions IA.
+- [ ] Modèle de capacités appliqué aux actions IA (réel, plus simulé).
 
-**Démontrable :** on tape une phrase, le système agit — 100 % local.
+**Démontrable :** `cargo run -p libertyd` montre déjà l'IA qui initie, décide
+selon l'autonomie, et se fait borner par l'OS. Ensuite : on tape une phrase,
+le système agit — 100 % local.
 
 ## Phase 5 — Bus d'intents pour applications
 - [ ] SDK : une app déclare des actions ; `libertyd` les découvre/compose.
