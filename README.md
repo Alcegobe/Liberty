@@ -49,8 +49,11 @@ On ne réécrit **pas** un noyau de zéro. On part d'un **noyau Linux minimal**
 
 ## Documentation
 
-- [Vision](docs/VISION.md) — le « pourquoi » et le « quoi ».
+- [Vision](docs/VISION.md) — le « pourquoi », et les quatre promesses à l'humain.
+- [L'inversion](docs/INVERSION.md) — le paradigme central : l'IA initie, l'humain répond.
+- [Autonomie](docs/AUTONOMY.md) — comment l'IA agit seule, en sécurité, et réglable.
 - [Architecture](docs/ARCHITECTURE.md) — le « comment » technique.
+- [Le langage Lib](docs/LANGUAGE.md) — le langage d'action pensé pour l'IA.
 - [Roadmap](docs/ROADMAP.md) — les phases et jalons.
 
 ## Licence

@@ -13,6 +13,33 @@ Un OS conçu **maintenant** doit avoir l'IA dans son ADN. Pas un assistant
 dans un coin : une **couche d'intelligence système** que toute application
 peut invoquer, et qui peut agir sur le système au nom de l'utilisateur.
 
+Mais Liberty va plus loin qu'« une IA qui obéit ». Le cœur de sa vision, c'est
+**l'inversion** : l'IA mène la vie numérique et ne sollicite l'humain que
+lorsqu'elle en a besoin. Tu ne poses plus les requêtes — tu **réponds** aux
+questions que l'IA juge importantes. Voir [`INVERSION.md`](INVERSION.md).
+
+## Les quatre promesses à l'humain (la boussole)
+
+Avant la technique, ce que l'humain gagne vraiment. Tout le reste découle de
+ces quatre désirs :
+
+1. **Du temps.** La corvée (ranger, configurer, chercher, répéter, trier ses
+   mails) est déléguée — et souvent faite en silence.
+2. **De la vie privée.** L'IA est **locale par défaut** ; ta vie ne part pas
+   dans le cloud.
+3. **De la simplicité.** Plus besoin de savoir *comment* faire, ni de bien
+   « prompter » : tu dis ton but, ou l'IA anticipe et te pose une question
+   précise.
+4. **Du contrôle.** L'IA peut agir, et même agir seule, **sans déborder** :
+   effets déclarés + capacités + réversibilité + transparence consultable.
+   Tu règles son niveau d'autonomie. Voir [`AUTONOMY.md`](AUTONOMY.md).
+
+> Personne ne se réveille en voulant « un OS AI-first ». On veut récupérer du
+> temps, garder sa vie privée, ne plus se battre avec sa machine, et rester
+> maître de ce qui se passe chez soi. L'IA-first est la *plomberie* au service
+> de ces quatre désirs. C'est la boussole : si un choix technique ne sert pas
+> l'un d'eux, on le questionne.
+
 ### Trois piliers
 
 1. **AI-first**
