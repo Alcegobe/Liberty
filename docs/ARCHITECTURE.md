@@ -48,15 +48,18 @@
   d'activation. Léger, rapide, prévisible.
 
 ### `libertyd` — couche IA système (`services/libertyd/`)
-- **Runtime d'inférence local** : exécute des modèles (LLM/SLM, vision) sur
-  CPU/GPU/NPU. Backend interchangeable (p. ex. llama.cpp/ONNX/candle).
-- **Bus d'intents** : les apps déclarent des outils/actions ; `libertyd`
-  les découvre et les compose pour répondre aux requêtes en langage naturel.
-- **Garde-fou de capacités** : toute action IA passe par le contrôle de
-  capacités et, si nécessaire, une confirmation utilisateur.
+- **L'esprit : Claude** (`claude-opus-4-8` via l'API Anthropic, compte lié à
+  la session). Les **réflexes** : modèles légers (`claude-haiku-4-5`) et/ou
+  locaux pour le pré-filtrage et le mode hors-ligne. Backend interchangeable
+  via le trait `Brain`. Voir [`AI.md`](AI.md).
+- **Bus d'intents = tool use Claude** : les apps déclarent des outils/actions ;
+  `libertyd` les expose à Claude comme outils API, qui les compose pour
+  répondre aux requêtes en langage naturel.
+- **Garde-fou de capacités** : toute action IA — y compris décidée par
+  Claude — passe par le contrôle de capacités appliqué par l'OS.
 - **Mémoire/contexte** : stockage local chiffré du contexte utilisateur.
-- **Confidentialité** : local par défaut ; tout appel réseau est explicite,
-  visible et révocable.
+- **Confidentialité** : minimisation (pré-filtrage local), appels réseau
+  journalisés, consultables et révocables ; mode dégradé hors-ligne.
 
 ### Compositeur (`userland/compositor/`)
 - Compositeur Wayland en Rust (piste : smithay).

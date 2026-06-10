@@ -43,12 +43,16 @@ ces quatre désirs :
 ### Trois piliers
 
 1. **AI-first**
-   - Un service système, `libertyd`, expose un runtime d'inférence local.
+   - Un service système, `libertyd`, dont l'esprit est **Claude** (compte
+     Anthropic lié à la session) et les réflexes des modèles légers/locaux.
+     Voir [`AI.md`](AI.md).
    - L'utilisateur s'adresse au système en langage naturel (« range mes
      téléchargements par projet », « réduis la conso batterie »).
    - Les applications déclarent des *actions* que l'IA peut composer
      (intents/outils), avec un contrôle de capacités strict.
-   - **Local par défaut.** Le cloud est opt-in, explicite, et jamais requis.
+   - **Minimisation et transparence.** Pré-filtrage local, appels réseau
+     journalisés et coupables, mode dégradé hors-ligne, backend
+     interchangeable pour qui veut du 100 % local.
 
 2. **Épuré**
    - Une seule bonne façon de faire chaque chose.

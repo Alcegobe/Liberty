@@ -37,7 +37,7 @@ On ne réécrit **pas** un noyau de zéro. On part d'un **noyau Linux minimal**
 | Langage userland     | Rust                                    |
 | Affichage            | Compositeur Wayland maison              |
 | Shell / UI           | Shell Liberty (graphique + langage nat.)|
-| IA système           | `libertyd` + runtime d'inférence local  |
+| IA système           | `libertyd` + **Claude** (compte Anthropic) |
 | Paquets              | Gestionnaire déclaratif, immuable        |
 | Cibles               | x86_64, ARM64 (test via QEMU)           |
 
@@ -51,6 +51,7 @@ On ne réécrit **pas** un noyau de zéro. On part d'un **noyau Linux minimal**
 
 - [Vision](docs/VISION.md) — le « pourquoi », et les quatre promesses à l'humain.
 - [L'inversion](docs/INVERSION.md) — le paradigme central : l'IA initie, l'humain répond.
+- [L'IA de Liberty](docs/AI.md) — Claude comme esprit du système, connexion par compte Anthropic.
 - [Autonomie](docs/AUTONOMY.md) — comment l'IA agit seule, en sécurité, et réglable.
 - [Architecture](docs/ARCHITECTURE.md) — le « comment » technique.
 - [Le langage Lib](docs/LANGUAGE.md) — le langage d'action pensé pour l'IA.
