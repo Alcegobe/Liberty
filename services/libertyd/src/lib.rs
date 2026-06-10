@@ -12,6 +12,7 @@
 
 pub mod autonomy;
 pub mod brain;
+pub mod claude_code;
 pub mod config;
 pub mod decision;
 pub mod effects;

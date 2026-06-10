@@ -50,11 +50,20 @@ Le script :
 1. installe les dépendances (git, gcc, Rust) ;
 2. clone et compile Liberty (`libertyd` + `lish`, transport Claude activé) ;
 3. installe la config dans `/etc/liberty/liberty.toml` ;
-4. demande ta **clé API Anthropic** (créée sur
-   [console.anthropic.com](https://console.anthropic.com)) et la range dans
-   `/etc/liberty/anthropic.key` (mode 600) ;
+4. installe **Claude Code** pour l'utilisateur désigné (mode « compte
+   Anthropic ») ;
 5. installe et démarre le service systemd `libertyd` ;
 6. déclare `lish` comme shell de connexion possible.
+
+**Connecter l'esprit — deux modes :**
+
+- **Compte Anthropic (recommandé, sans clé)** : dans la VM, lance une fois
+  `claude /login` — un lien s'affiche, ouvre-le dans le navigateur de ton PC,
+  connecte ton compte Claude, colle le code retourné. `lish` et `libertyd`
+  utilisent ensuite ce compte automatiquement.
+- **Clé API** (console.anthropic.com) : `/etc/liberty/anthropic.key`
+  (mode 600). Ce mode active la boucle de décision complète de Liberty
+  (capacités fines par effet).
 
 Options utiles :
 

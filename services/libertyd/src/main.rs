@@ -32,7 +32,7 @@ fn main() {
         "--daemon" => live(&cfg, &brain, true),
         "--once" => live(&cfg, &brain, false),
         "" => {
-            if brain.ready() {
+            if brain.ready() || libertyd::claude_code::find().is_some() {
                 live(&cfg, &brain, false)
             } else {
                 println!("Aucun compte Anthropic lié → démonstration hors-ligne.\n");
@@ -67,15 +67,47 @@ fn help() {
 // Mode réel : l'esprit au travail (feature `claude`)
 // ---------------------------------------------------------------------------
 
+/// Mission envoyée à l'esprit à chaque battement de cœur.
+fn heartbeat_mission() -> String {
+    format!(
+        "Battement de cœur autonome de Liberty. Examine ce rapport, traite \
+         ce qui mérite de l'être (santé du système, disque, services en \
+         échec, processus anormaux). S'il n'y a rien d'utile à faire, \
+         conclus immédiatement — n'invente pas de travail.\n\n{}",
+        libertyd::sensors::situation_report()
+    )
+}
+
+/// Battement de cœur en mode « compte Anthropic » (esprit via Claude Code).
+fn live_claude_code(cfg: &Config, cli: std::path::PathBuf, forever: bool) {
+    println!("libertyd — esprit via Claude Code (compte Anthropic)");
+    println!("  Profil : {}\n", cfg.policy().name);
+    loop {
+        match libertyd::claude_code::heartbeat(&cli, cfg, &heartbeat_mission()) {
+            Ok(s) => println!("♥ bilan : {s}\n"),
+            Err(e) => eprintln!("⚠️  battement interrompu : {e}\n"),
+        }
+        if !forever {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(cfg.heartbeat_secs));
+    }
+}
+
 #[cfg(feature = "claude")]
 fn live(cfg: &Config, brain: &ClaudeBrain, forever: bool) {
     use libertyd::journal::Journal;
-    use libertyd::{agent, sensors, transport};
+    use libertyd::{agent, transport};
 
     if !brain.ready() {
+        if let Some(cli) = libertyd::claude_code::find() {
+            return live_claude_code(cfg, cli, forever);
+        }
         eprintln!(
-            "Aucun compte Anthropic lié (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN \
-             absents, et pas de credentials.api_key_file lisible dans {}).",
+            "Aucun esprit disponible : ni compte Anthropic via Claude Code \
+             (installe-le : curl -fsSL https://claude.ai/install.sh | bash, \
+             puis « claude /login »), ni clé API (ANTHROPIC_API_KEY ou \
+             credentials.api_key_file dans {}).",
             Config::path().display()
         );
         std::process::exit(1);
@@ -105,13 +137,7 @@ fn live(cfg: &Config, brain: &ClaudeBrain, forever: bool) {
 
     let mut iface = DaemonInterface;
     loop {
-        let report = sensors::situation_report();
-        let mission = format!(
-            "Battement de cœur autonome de Liberty. Examine ce rapport, traite \
-             ce qui mérite de l'être (santé du système, disque, services en \
-             échec, processus anormaux). S'il n'y a rien d'utile à faire, \
-             conclus immédiatement par done — n'invente pas de travail.\n\n{report}"
-        );
+        let mission = heartbeat_mission();
         let mut messages = Vec::new();
         match agent::run_mission(brain, cfg, &journal, &mut iface, &mut messages, &mission, &model)
         {
@@ -145,12 +171,19 @@ impl libertyd::agent::Interface for DaemonInterface {
 }
 
 #[cfg(not(feature = "claude"))]
-fn live(_cfg: &Config, _brain: &ClaudeBrain, _forever: bool) {
+fn live(cfg: &Config, _brain: &ClaudeBrain, forever: bool) {
+    // Sans transport réseau intégré, le mode « compte Anthropic » via
+    // Claude Code reste possible.
+    if let Some(cli) = libertyd::claude_code::find() {
+        return live_claude_code(cfg, cli, forever);
+    }
     eprintln!(
-        "Ce binaire est compilé sans le transport réseau.\n\
-         Recompile avec `cargo build --release --features claude` pour \
-         connecter l'esprit, ou lance `libertyd --demo` pour la démonstration \
-         hors-ligne."
+        "Ce binaire est compilé sans le transport réseau, et Claude Code \
+         n'est pas installé.\n\
+         - compte Anthropic : curl -fsSL https://claude.ai/install.sh | bash, \
+         puis « claude /login »\n\
+         - ou recompile avec `cargo build --release --features claude` (clé API)\n\
+         - ou lance `libertyd --demo` pour la démonstration hors-ligne."
     );
     std::process::exit(1);
 }

@@ -51,29 +51,33 @@ cargo build --release --features claude \
 install -m 755 "$SRC/services/libertyd/target/release/libertyd" /usr/local/bin/
 install -m 755 "$SRC/services/libertyd/target/release/lish" /usr/local/bin/
 
-say "5/6 — configuration"
+say "5/6 — configuration + Claude Code (mode compte Anthropic)"
 mkdir -p /etc/liberty /var/lib/liberty
 if [ ! -f /etc/liberty/liberty.toml ]; then
     install -m 644 "$SRC/install/liberty.toml" /etc/liberty/liberty.toml
 fi
-if [ ! -s /etc/liberty/anthropic.key ]; then
-    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-        printf '%s\n' "$ANTHROPIC_API_KEY" > /etc/liberty/anthropic.key
-    else
-        printf 'Clé API Anthropic (sk-ant-…, laisser vide pour plus tard) : '
-        read -r KEY </dev/tty || KEY=""
-        [ -n "$KEY" ] && printf '%s\n' "$KEY" > /etc/liberty/anthropic.key
-    fi
+if [ ! -s /etc/liberty/anthropic.key ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    printf '%s\n' "$ANTHROPIC_API_KEY" > /etc/liberty/anthropic.key
 fi
 [ -f /etc/liberty/anthropic.key ] && chmod 600 /etc/liberty/anthropic.key
+# Claude Code : l'esprit via le compte Anthropic (sans clé API).
+if [ -n "${LIBERTY_USER:-}" ] && id "$LIBERTY_USER" >/dev/null 2>&1; then
+    if ! su - "$LIBERTY_USER" -c 'test -x "$HOME/.local/bin/claude"'; then
+        su - "$LIBERTY_USER" -c 'curl -fsSL https://claude.ai/install.sh | bash' \
+            || say "⚠ installation de Claude Code échouée (réessayable plus tard)"
+    fi
+fi
 
 say "6/6 — service systemd + shell"
 install -m 644 "$SRC/install/libertyd.service" /etc/systemd/system/libertyd.service
+# Si un utilisateur est désigné, le démon tourne sous son identité : il
+# partage ainsi sa connexion Claude Code (compte Anthropic).
+if [ -n "${LIBERTY_USER:-}" ] && id "$LIBERTY_USER" >/dev/null 2>&1; then
+    sed -i "/^\[Service\]/a User=$LIBERTY_USER" /etc/systemd/system/libertyd.service
+fi
 systemctl daemon-reload
 systemctl enable libertyd.service >/dev/null 2>&1 || true
-if [ -s /etc/liberty/anthropic.key ]; then
-    systemctl restart libertyd.service
-fi
+systemctl restart libertyd.service || true
 grep -qx /usr/local/bin/lish /etc/shells || echo /usr/local/bin/lish >> /etc/shells
 if [ -n "${LIBERTY_USER:-}" ] && id "$LIBERTY_USER" >/dev/null 2>&1; then
     chsh -s /usr/local/bin/lish "$LIBERTY_USER"
@@ -96,6 +100,7 @@ say "  esprit  : systemctl status libertyd   (journal : journalctl -u libertyd -
 say "  shell   : lish                        (langage naturel ; ! pour le shell brut)"
 say "  config  : /etc/liberty/liberty.toml   (profil d'autonomie, capacités)"
 if [ ! -s /etc/liberty/anthropic.key ]; then
-    say "  ⚠ pas de clé API : mets-la dans /etc/liberty/anthropic.key puis"
-    say "    systemctl restart libertyd"
+    say "  → dernière étape : connecte ton compte Anthropic en lançant"
+    say "    claude /login    (une seule fois — l'esprit s'en servira partout)"
+    say "    (alternative : clé API dans /etc/liberty/anthropic.key)"
 fi

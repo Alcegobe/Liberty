@@ -61,10 +61,18 @@ fn main() {
 fn banner(cfg: &Config, brain: &ClaudeBrain) {
     if brain.ready() {
         println!("esprit : {} · profil : {}", brain.name(), cfg.policy().name);
+    } else if libertyd::claude_code::find().is_some() {
+        println!(
+            "esprit : Claude Code (compte Anthropic) · profil : {}",
+            cfg.policy().name
+        );
     } else {
         println!(
-            "⚠ aucun compte Anthropic lié — mode shell brut uniquement.\n\
-             (renseigne ANTHROPIC_API_KEY ou credentials.api_key_file dans {})",
+            "⚠ aucun esprit disponible — mode shell brut uniquement.\n\
+             deux façons de connecter Liberty à Anthropic :\n\
+             1. compte Anthropic : installe Claude Code puis « claude /login »\n\
+                curl -fsSL https://claude.ai/install.sh | bash\n\
+             2. clé API : credentials.api_key_file dans {}",
             Config::path().display()
         );
     }
@@ -89,6 +97,8 @@ struct Session {
     #[cfg_attr(not(feature = "claude"), allow(dead_code))]
     brain: ClaudeBrain,
     journal: Journal,
+    /// Une session Claude Code (mode compte) a déjà démarré → --continue.
+    cc_started: bool,
     #[cfg(feature = "claude")]
     messages: Vec<serde_json::Value>,
     #[cfg(feature = "claude")]
@@ -101,6 +111,7 @@ impl Session {
             cfg,
             brain,
             journal,
+            cc_started: false,
             #[cfg(feature = "claude")]
             messages: Vec::new(),
             #[cfg(feature = "claude")]
@@ -160,14 +171,31 @@ impl Session {
         }
     }
 
-    #[cfg(feature = "claude")]
     fn intent(&mut self, text: &str) {
-        use libertyd::{agent, transport};
-
-        if !self.brain.ready() {
-            println!("aucun compte Anthropic lié — utilise !<commande> en attendant.");
+        #[cfg(feature = "claude")]
+        if self.brain.ready() {
+            self.intent_api(text);
             return;
         }
+        // Mode compte Anthropic : l'esprit via Claude Code.
+        if let Some(cli) = libertyd::claude_code::find() {
+            match libertyd::claude_code::interactive(&cli, &self.cfg, text, self.cc_started) {
+                Ok(()) => self.cc_started = true,
+                Err(e) => eprintln!("✖ {e}"),
+            }
+            return;
+        }
+        println!(
+            "aucun esprit disponible. Connecte un compte Anthropic :\n\
+             curl -fsSL https://claude.ai/install.sh | bash   puis : claude /login\n\
+             (ou une clé API — voir :help). En attendant : !<commande>."
+        );
+    }
+
+    #[cfg(feature = "claude")]
+    fn intent_api(&mut self, text: &str) {
+        use libertyd::{agent, transport};
+
         if self.model.is_none() {
             match transport::pick_model(&self.brain, &self.cfg) {
                 Ok(m) => {
@@ -210,14 +238,6 @@ impl Session {
         }
     }
 
-    #[cfg(not(feature = "claude"))]
-    fn intent(&mut self, _text: &str) {
-        println!(
-            "ce lish est compilé sans le transport réseau (feature `claude`).\n\
-             recompile avec `cargo build --release --features claude` ; en \
-             attendant, ! devant une commande shell brute."
-        );
-    }
 }
 
 #[cfg(feature = "claude")]
