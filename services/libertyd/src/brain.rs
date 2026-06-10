@@ -1,6 +1,6 @@
 //! Le `Brain` — l'esprit de Liberty, backend interchangeable.
 //!
-//! En production, l'esprit est **Claude** (`claude-opus-4-8`) via l'API
+//! En production, l'esprit est **Claude** (Fable 5 par défaut) via l'API
 //! Anthropic, authentifié par le compte Anthropic de la session (OAuth) ou
 //! une clé API. En développement hors-ligne, `SimulatedBrain` fournit des
 //! situations réalistes. Voir docs/AI.md.
@@ -8,6 +8,7 @@
 use crate::autonomy::Domain;
 use crate::decision::Action;
 use crate::effects::Effect;
+use crate::model;
 
 /// L'interface de l'esprit : à partir de l'état du système, il *initie* des
 /// actions (l'inversion) avec son jugement calibré (confiance, questions).
@@ -24,6 +25,7 @@ pub trait Brain {
 /// Ordre de résolution aligné sur l'écosystème Anthropic : clé API d'abord
 /// (elle masque tout le reste — il faut le signaler), puis jeton OAuth.
 /// À terme : profil du trousseau chiffré de Liberty.
+#[allow(dead_code)] // les jetons sont lus par headers() (feature `claude`)
 pub enum Credentials {
     /// Clé API → en-tête `x-api-key`.
     ApiKey(String),
@@ -51,12 +53,13 @@ pub fn resolve_credentials() -> Credentials {
 // ClaudeBrain — la vraie intégration (forme exacte des requêtes API)
 // ---------------------------------------------------------------------------
 
-pub const CLAUDE_MODEL: &str = "claude-opus-4-8";
+#[allow(dead_code)] // utilisé par le transport réseau (feature `claude`)
 pub const API_URL: &str = "https://api.anthropic.com/v1/messages";
 
 /// Le prompt système de l'esprit. Stable et long → destiné au prompt caching
 /// (`cache_control: ephemeral` sur ce bloc) ; le contexte volatil arrive
 /// après, dans les messages.
+#[allow(dead_code)] // intégré au corps de requête (feature `claude`)
 const SYSTEM_PROMPT: &str = "Tu es libertyd, l'esprit de Liberty OS. Tu observes \
 l'état du système et tu INITIES des actions au nom de l'utilisateur (il ne te \
 prompte pas : tu agis, tu proposes, ou tu poses une question précise). Pour \
@@ -79,6 +82,7 @@ impl ClaudeBrain {
     }
 
     /// En-têtes HTTP exacts pour `POST /v1/messages`, selon le mode d'auth.
+    #[allow(dead_code)] // utilisé par le transport réseau (feature `claude`)
     pub fn headers(&self) -> Vec<(String, String)> {
         let mut h = vec![
             ("content-type".into(), "application/json".into()),
@@ -97,13 +101,13 @@ impl ClaudeBrain {
 
     /// Corps de la requête : le bus d'intents de Liberty exposé comme outils
     /// (tool use), thinking adaptatif, prompt système cachable.
-    /// Exercé par les tests ; sera câblé au transport HTTP en phase réseau.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // utilisé par le transport réseau (feature `claude`)
     pub fn request_body(&self, situation_report: &str) -> String {
         let escaped = situation_report.replace('\\', "\\\\").replace('"', "\\\"");
+        let model = model::default_model();
         format!(
             r#"{{
-  "model": "{CLAUDE_MODEL}",
+  "model": "{model}",
   "max_tokens": 16000,
   "thinking": {{"type": "adaptive"}},
   "system": [
@@ -149,7 +153,7 @@ impl ClaudeBrain {
 
 impl Brain for ClaudeBrain {
     fn name(&self) -> String {
-        format!("Claude ({CLAUDE_MODEL})")
+        format!("Claude ({})", model::default_model())
     }
 
     fn assess(&self) -> Vec<Action> {
@@ -265,7 +269,8 @@ mod tests {
     fn request_body_targets_current_model_with_adaptive_thinking() {
         let b = ClaudeBrain::new(Credentials::ApiKey("k".into()));
         let body = b.request_body("disque plein");
-        assert!(body.contains(r#""model": "claude-opus-4-8""#));
+        let m = model::default_model();
+        assert!(body.contains(&format!(r#""model": "{m}""#)));
         assert!(body.contains(r#""thinking": {"type": "adaptive"}"#));
         assert!(body.contains(r#""cache_control": {"type": "ephemeral"}"#));
         assert!(body.contains("ask_user"));

@@ -1,24 +1,33 @@
 //! libertyd — prototype du démon d'intelligence système de Liberty.
 //!
-//! L'esprit (`Brain`) observe et initie des actions ; la boucle de décision
-//! (`decide()`) est le filet de sécurité de l'OS au-dessous : capacités,
-//! niveaux d'autonomie, règle réversible/local. En production l'esprit est
-//! Claude (compte Anthropic) ; hors-ligne, une simulation prend le relais.
+//! L'esprit observe l'état du système et INITIE des actions (l'inversion) ;
+//! la boucle `decide()` est le filet de sécurité de l'OS au-dessous
+//! (capacités, autonomie, réversible/local). En production l'esprit est
+//! **Claude** (compte Anthropic, Fable 5 par défaut) ; hors-ligne ou sans
+//! compte, une simulation prend le relais.
 //!
-//!     cargo run --manifest-path services/libertyd/Cargo.toml
+//!     # démo hors-ligne (sans dépendance) :
+//!     cargo run  --manifest-path services/libertyd/Cargo.toml
 //!     cargo test --manifest-path services/libertyd/Cargo.toml
+//!
+//!     # vraie connexion à ton compte Anthropic (sur ta machine) :
+//!     export ANTHROPIC_API_KEY=sk-ant-...        # ta clé
+//!     cargo run --features claude --manifest-path services/libertyd/Cargo.toml
 
 mod autonomy;
 mod brain;
 mod decision;
 mod effects;
+mod model;
+#[cfg(feature = "claude")]
+mod transport;
 
 use autonomy::{Autonomy, Policy};
 use brain::{resolve_credentials, Brain, ClaudeBrain, SimulatedBrain};
-use decision::{decide, Decision};
+use decision::{decide, Action, Decision};
 use effects::Effect;
 
-fn run(brain: &dyn Brain, p: &Policy, caps: &[Effect]) {
+fn run(actions: &[Action], p: &Policy, caps: &[Effect]) {
     println!("══════════════════════════════════════════════════════════════");
     println!(" Profil d'autonomie : « {} »", p.name);
     println!(
@@ -35,10 +44,10 @@ fn run(brain: &dyn Brain, p: &Policy, caps: &[Effect]) {
     let mut suggestions: Vec<String> = Vec::new();
     let mut blocked: Vec<(String, String)> = Vec::new();
 
-    for a in brain.assess() {
+    for a in actions {
         let level = p.level(a.domain);
         println!("• {} détecté : {}", a.domain.label(), a.trigger);
-        match decide(&a, level, caps) {
+        match decide(a, level, caps) {
             Decision::Silent => {
                 println!("  🟢 Agit seul : {}", a.name);
                 journal.push(format!("{} — touche {}", a.name, a.effects_summary()));
@@ -103,6 +112,32 @@ fn print_section(title: &str, items: &[String]) {
     }
 }
 
+/// Récupère les actions à évaluer : Claude réel si possible, sinon simulation.
+fn gather_actions(claude: &ClaudeBrain) -> Vec<Action> {
+    #[cfg(feature = "claude")]
+    {
+        if claude.ready() {
+            match transport::startup(claude) {
+                Ok(actions) => return actions,
+                Err(e) => eprintln!("⚠️  Connexion Anthropic échouée : {e}\n    → bascule sur la simulation hors-ligne.\n"),
+            }
+        } else {
+            println!("Aucun compte Anthropic lié (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN absents).");
+            println!("→ simulation hors-ligne.\n");
+        }
+    }
+    #[cfg(not(feature = "claude"))]
+    {
+        if claude.ready() {
+            println!("Compte Anthropic détecté, mais binaire compilé sans `--features claude`.");
+            println!("→ simulation hors-ligne. Recompile avec `--features claude` pour te connecter.\n");
+        } else {
+            println!("Mode hors-ligne (sans dépendance) → simulation.\n");
+        }
+    }
+    SimulatedBrain.assess()
+}
+
 fn main() {
     // Capacités accordées par l'utilisateur — le garde-fou matériel.
     // À noter : le RÉSEAU n'est volontairement PAS accordé.
@@ -115,24 +150,13 @@ fn main() {
 
     println!("libertyd — démon d'intelligence système de Liberty (prototype)\n");
 
-    // Sélection de l'esprit : Claude si un compte/clé Anthropic est lié,
-    // sinon simulation hors-ligne.
     let claude = ClaudeBrain::new(resolve_credentials());
-    let brain: Box<dyn Brain> = if claude.ready() {
-        println!("Esprit : {} — compte Anthropic lié.", claude.name());
-        println!(
-            "Cible : {} ({} en-têtes d'auth prêts).",
-            brain::API_URL,
-            claude.headers().len()
-        );
-        println!("(Transport HTTP non câblé dans ce prototype : requêtes construites");
-        println!(" et testées, envoi à venir. Bascule sur la simulation.)\n");
-        Box::new(SimulatedBrain)
-    } else {
-        println!("Esprit : aucun compte Anthropic lié (ANTHROPIC_API_KEY /");
-        println!("ANTHROPIC_AUTH_TOKEN absents) → simulation hors-ligne.\n");
-        Box::new(SimulatedBrain)
-    };
+    println!("Modèle visé : {}", model::default_model());
+    if claude.ready() {
+        println!("Esprit : {} — compte Anthropic lié.\n", claude.name());
+    }
+
+    let actions = gather_actions(&claude);
 
     println!(
         "Capacités accordées : {}\n",
@@ -155,12 +179,10 @@ fn main() {
     ];
 
     for p in &profiles {
-        run(brain.as_ref(), p, &caps);
+        run(&actions, p, &caps);
     }
 
     println!("Lecture : l'IA a *initié* chaque situation (l'inversion). Selon le");
     println!("niveau d'autonomie, elle agit en silence, propose, te consulte, ou se");
-    println!("voit refuser par l'OS. Le même jugement faible (mail au patron) remonte");
-    println!("toujours une question, quel que soit le curseur ; et la télémétrie reste");
-    println!("bloquée même à 99 % de confiance, faute de capacité réseau.");
+    println!("voit refuser par l'OS — la sécurité (capacités) reste invariante.");
 }

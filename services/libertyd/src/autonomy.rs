@@ -1,6 +1,8 @@
 //! Le modèle d'autonomie : niveaux réglables par domaine (le « curseur »).
 //! Voir docs/AUTONOMY.md.
 
+use crate::effects::Effect;
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum Domain {
     System,
@@ -15,6 +17,19 @@ impl Domain {
             Domain::Files => "Fichiers",
             Domain::Communication => "Communication",
         }
+    }
+}
+
+/// Déduire le domaine d'une action à partir de ses effets (pour les actions
+/// renvoyées par Claude, qui ne le précise pas).
+#[allow(dead_code)] // utilisé par le transport réseau (feature `claude`)
+pub fn infer_domain(effects: &[Effect]) -> Domain {
+    if effects.iter().any(|e| matches!(e, Effect::Email)) {
+        Domain::Communication
+    } else if effects.iter().any(|e| matches!(e, Effect::Files(_))) {
+        Domain::Files
+    } else {
+        Domain::System
     }
 }
 
