@@ -1,33 +1,208 @@
-//! libertyd — prototype du démon d'intelligence système de Liberty.
+//! libertyd — le démon d'intelligence système de Liberty OS.
 //!
-//! L'esprit observe l'état du système et INITIE des actions (l'inversion) ;
-//! la boucle `decide()` est le filet de sécurité de l'OS au-dessous
-//! (capacités, autonomie, réversible/local). En production l'esprit est
-//! **Claude** (compte Anthropic, Fable 5 par défaut) ; hors-ligne ou sans
-//! compte, une simulation prend le relais.
+//! Modes :
+//!   libertyd --daemon   boucle autonome : observer → réfléchir (Claude) →
+//!                       décider → agir → journaliser, à chaque battement.
+//!   libertyd --once     un seul battement (utile en test / cron).
+//!   libertyd --demo     démonstration hors-ligne de la boucle de décision
+//!                       (aucun réseau, esprit simulé).
 //!
-//!     # démo hors-ligne (sans dépendance) :
-//!     cargo run  --manifest-path services/libertyd/Cargo.toml
-//!     cargo test --manifest-path services/libertyd/Cargo.toml
+//! Sans argument : --once si un compte Anthropic est lié, sinon --demo.
 //!
-//!     # vraie connexion à ton compte Anthropic (sur ta machine) :
-//!     export ANTHROPIC_API_KEY=sk-ant-...        # ta clé
-//!     cargo run --features claude --manifest-path services/libertyd/Cargo.toml
+//!     # build OS (connexion réelle) :
+//!     cargo build --release --features claude
+//!     # build dev hors-ligne :
+//!     cargo run -- --demo
 
-mod autonomy;
-mod brain;
-mod decision;
-mod effects;
-mod model;
+use libertyd::autonomy::{Autonomy, Policy};
+use libertyd::brain::{resolve_credentials, ClaudeBrain, SimulatedBrain};
+use libertyd::config::Config;
+use libertyd::decision::{decide, Action, Decision};
+use libertyd::effects::Effect;
+use libertyd::model;
+
+fn main() {
+    let mode = std::env::args().nth(1).unwrap_or_default();
+    let cfg = Config::load();
+    let brain = ClaudeBrain::new(resolve_credentials(&cfg));
+
+    match mode.as_str() {
+        "--demo" => demo(),
+        "--help" | "-h" => help(),
+        "--daemon" => live(&cfg, &brain, true),
+        "--once" => live(&cfg, &brain, false),
+        "" => {
+            if brain.ready() {
+                live(&cfg, &brain, false)
+            } else {
+                println!("Aucun compte Anthropic lié → démonstration hors-ligne.\n");
+                demo()
+            }
+        }
+        other => {
+            eprintln!("argument inconnu : {other}\n");
+            help();
+            std::process::exit(2);
+        }
+    }
+}
+
+fn help() {
+    println!(
+        "libertyd — démon d'intelligence système de Liberty OS\n\n\
+         usage : libertyd [--daemon | --once | --demo | --help]\n\n\
+         --daemon  boucle autonome continue (production)\n\
+         --once    un seul battement de cœur\n\
+         --demo    démonstration hors-ligne (esprit simulé, aucun réseau)\n\n\
+         Config   : {} (LIBERTY_CONFIG pour changer)\n\
+         Modèle   : {} (LIBERTY_MODEL pour forcer)\n\
+         Compte   : ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN, ou \
+         credentials.api_key_file dans la config",
+        Config::path().display(),
+        model::default_model(),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Mode réel : l'esprit au travail (feature `claude`)
+// ---------------------------------------------------------------------------
+
 #[cfg(feature = "claude")]
-mod transport;
+fn live(cfg: &Config, brain: &ClaudeBrain, forever: bool) {
+    use libertyd::journal::Journal;
+    use libertyd::{agent, sensors, transport};
 
-use autonomy::{Autonomy, Policy};
-use brain::{resolve_credentials, Brain, ClaudeBrain, SimulatedBrain};
-use decision::{decide, Action, Decision};
-use effects::Effect;
+    if !brain.ready() {
+        eprintln!(
+            "Aucun compte Anthropic lié (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN \
+             absents, et pas de credentials.api_key_file lisible dans {}).",
+            Config::path().display()
+        );
+        std::process::exit(1);
+    }
 
-fn run(actions: &[Action], p: &Policy, caps: &[Effect]) {
+    let journal = Journal::open();
+    let model = match transport::pick_model(brain, cfg) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("⚠️  Connexion Anthropic échouée : {e}");
+            std::process::exit(1);
+        }
+    };
+
+    println!("libertyd — l'esprit de Liberty est en ligne");
+    println!("  Modèle    : {model}");
+    println!("  Profil    : {}", cfg.policy().name);
+    println!(
+        "  Capacités : {}",
+        cfg.capabilities
+            .iter()
+            .map(|e| e.describe())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!("  Journal   : {}\n", journal.path().display());
+
+    let mut iface = DaemonInterface;
+    loop {
+        let report = sensors::situation_report();
+        let mission = format!(
+            "Battement de cœur autonome de Liberty. Examine ce rapport, traite \
+             ce qui mérite de l'être (santé du système, disque, services en \
+             échec, processus anormaux). S'il n'y a rien d'utile à faire, \
+             conclus immédiatement par done — n'invente pas de travail.\n\n{report}"
+        );
+        let mut messages = Vec::new();
+        match agent::run_mission(brain, cfg, &journal, &mut iface, &mut messages, &mission, &model)
+        {
+            Ok(summary) => println!("♥ bilan : {summary}\n"),
+            Err(e) => eprintln!("⚠️  battement interrompu : {e}\n"),
+        }
+        if !forever {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(cfg.heartbeat_secs));
+    }
+}
+
+#[cfg(feature = "claude")]
+struct DaemonInterface;
+
+#[cfg(feature = "claude")]
+impl libertyd::agent::Interface for DaemonInterface {
+    fn present(&self) -> bool {
+        false // personne au bout du fil : tout passe par le journal
+    }
+    fn notify(&mut self, line: &str) {
+        println!("{line}");
+    }
+    fn approve(&mut self, _name: &str, _command: &str, _effects: &str) -> bool {
+        false
+    }
+    fn answer(&mut self, _question: &str) -> Option<String> {
+        None
+    }
+}
+
+#[cfg(not(feature = "claude"))]
+fn live(_cfg: &Config, _brain: &ClaudeBrain, _forever: bool) {
+    eprintln!(
+        "Ce binaire est compilé sans le transport réseau.\n\
+         Recompile avec `cargo build --release --features claude` pour \
+         connecter l'esprit, ou lance `libertyd --demo` pour la démonstration \
+         hors-ligne."
+    );
+    std::process::exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Mode démo : la boucle de décision à l'œuvre, hors-ligne
+// ---------------------------------------------------------------------------
+
+fn demo() {
+    let caps = vec![
+        Effect::Process,
+        Effect::Power,
+        Effect::Files("~".into()),
+        Effect::Email,
+    ];
+
+    println!("libertyd — démonstration hors-ligne de la boucle de décision\n");
+    let sim = SimulatedBrain;
+    println!("Esprit : {}", sim.name());
+    println!("Modèle visé en production : {}\n", model::default_model());
+
+    let actions = sim.assess();
+    println!(
+        "Capacités accordées : {}\n",
+        caps.iter().map(|e| e.describe()).collect::<Vec<_>>().join(", ")
+    );
+
+    let profiles = [
+        Policy {
+            name: "Prudent",
+            system: Autonomy::Autonomous,
+            files: Autonomy::Propose,
+            comm: Autonomy::Manual,
+        },
+        Policy {
+            name: "Confiance",
+            system: Autonomy::Autonomous,
+            files: Autonomy::Autonomous,
+            comm: Autonomy::Autonomous,
+        },
+    ];
+
+    for p in &profiles {
+        run_profile(&actions, p, &caps);
+    }
+
+    println!("Lecture : l'IA a *initié* chaque situation (l'inversion). Selon le");
+    println!("niveau d'autonomie, elle agit en silence, propose, te consulte, ou se");
+    println!("voit refuser par l'OS — la sécurité (capacités) reste invariante.");
+}
+
+fn run_profile(actions: &[Action], p: &Policy, caps: &[Effect]) {
     println!("══════════════════════════════════════════════════════════════");
     println!(" Profil d'autonomie : « {} »", p.name);
     println!(
@@ -110,79 +285,4 @@ fn print_section(title: &str, items: &[String]) {
     for it in items {
         println!("     - {it}");
     }
-}
-
-/// Récupère les actions à évaluer : Claude réel si possible, sinon simulation.
-fn gather_actions(claude: &ClaudeBrain) -> Vec<Action> {
-    #[cfg(feature = "claude")]
-    {
-        if claude.ready() {
-            match transport::startup(claude) {
-                Ok(actions) => return actions,
-                Err(e) => eprintln!("⚠️  Connexion Anthropic échouée : {e}\n    → bascule sur la simulation hors-ligne.\n"),
-            }
-        } else {
-            println!("Aucun compte Anthropic lié (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN absents).");
-            println!("→ simulation hors-ligne.\n");
-        }
-    }
-    #[cfg(not(feature = "claude"))]
-    {
-        if claude.ready() {
-            println!("Compte Anthropic détecté, mais binaire compilé sans `--features claude`.");
-            println!("→ simulation hors-ligne. Recompile avec `--features claude` pour te connecter.\n");
-        } else {
-            println!("Mode hors-ligne (sans dépendance) → simulation.\n");
-        }
-    }
-    SimulatedBrain.assess()
-}
-
-fn main() {
-    // Capacités accordées par l'utilisateur — le garde-fou matériel.
-    // À noter : le RÉSEAU n'est volontairement PAS accordé.
-    let caps = vec![
-        Effect::Process,
-        Effect::Power,
-        Effect::Files("~".into()),
-        Effect::Email,
-    ];
-
-    println!("libertyd — démon d'intelligence système de Liberty (prototype)\n");
-
-    let claude = ClaudeBrain::new(resolve_credentials());
-    println!("Modèle visé : {}", model::default_model());
-    if claude.ready() {
-        println!("Esprit : {} — compte Anthropic lié.\n", claude.name());
-    }
-
-    let actions = gather_actions(&claude);
-
-    println!(
-        "Capacités accordées : {}\n",
-        caps.iter().map(|e| e.describe()).collect::<Vec<_>>().join(", ")
-    );
-
-    let profiles = [
-        Policy {
-            name: "Prudent",
-            system: Autonomy::Autonomous,
-            files: Autonomy::Propose,
-            comm: Autonomy::Manual,
-        },
-        Policy {
-            name: "Confiance",
-            system: Autonomy::Autonomous,
-            files: Autonomy::Autonomous,
-            comm: Autonomy::Autonomous,
-        },
-    ];
-
-    for p in &profiles {
-        run(&actions, p, &caps);
-    }
-
-    println!("Lecture : l'IA a *initié* chaque situation (l'inversion). Selon le");
-    println!("niveau d'autonomie, elle agit en silence, propose, te consulte, ou se");
-    println!("voit refuser par l'OS — la sécurité (capacités) reste invariante.");
 }

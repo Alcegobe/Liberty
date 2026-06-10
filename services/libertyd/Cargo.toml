@@ -1,24 +1,34 @@
 [package]
 name = "libertyd"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Démon d'intelligence système de Liberty — esprit Claude + boucle de décision"
+description = "Démon d'intelligence système de Liberty — esprit Claude (Fable 5) + boucle de décision + exécution sous capacités"
+default-run = "libertyd"
+
+[lib]
+name = "libertyd"
+path = "src/lib.rs"
 
 [[bin]]
 name = "libertyd"
 path = "src/main.rs"
 
+[[bin]]
+name = "lish"
+path = "src/bin/lish.rs"
+
 # Le transport réseau vers Anthropic est derrière un feature, pour que le
-# build par défaut reste sans dépendance (et hors-ligne). Active-le pour la
-# vraie connexion à Claude : `cargo run --features claude`.
+# build par défaut reste léger et hors-ligne. Pour le vrai OS, on compile
+# avec : `cargo build --release --features claude`.
 [features]
 default = []
-claude = ["dep:ureq", "dep:serde_json"]
+claude = ["dep:ureq"]
 
 [dependencies]
+serde_json = "1"
 ureq = { version = "2", optional = true, features = ["json", "tls"] }
-serde_json = { version = "1", optional = true }
 
 [profile.release]
 opt-level = 3
 lto = true
+strip = true

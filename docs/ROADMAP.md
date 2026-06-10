@@ -1,81 +1,94 @@
 # Roadmap — Liberty OS
 
-Plan par phases. Chaque phase produit quelque chose de **démontrable** (qui
-boote/tourne sous QEMU), pas seulement du code. On avance par petits jalons
-vérifiables.
+Plan par phases. Chaque phase produit quelque chose de **démontrable**, pas
+seulement du code. On avance par petits jalons vérifiables.
 
-> Réalisme : c'est un projet de très long terme. L'objectif des premières
-> phases n'est pas un OS « fini » mais une **boucle de développement solide**
-> et une **identité technique claire**.
+> Changement de stratégie (juin 2026) : on construit **la couche d'abord,
+> l'image ensuite**. L'identité de Liberty, c'est son esprit (`libertyd`) et
+> son shell (`lish`) — ils tournent dès aujourd'hui sur une Debian minimale
+> en VM. L'image disque dédiée, le compositeur et le reste viennent
+> s'empiler dessous et autour, sans bloquer l'essentiel.
 
 ---
 
-## Phase 0 — Fondations *(en cours)*
+## Phase 0 — Fondations *(fait)*
 - [x] Vision, architecture et roadmap rédigées.
 - [x] Structure du dépôt.
-- [ ] Choix de licence + `CONTRIBUTING`.
-- [ ] Environnement de build reproductible (toolchain Rust, QEMU, scripts).
-- [ ] CI : build + lint à chaque commit.
+- [x] Pivot : Claude (Fable 5, puis chaque modèle plus capable) est l'esprit.
 
-**Démontrable :** `make setup && make doctor` valide l'environnement.
+## Phase 1 — L'esprit vivant *(fait — v0.2)*
+- [x] **Boucle de décision** : capacités, autonomie par domaine, règle
+      réversible/local, seuils de confiance (testée).
+- [x] **Capteurs locaux** : charge, mémoire, disques, processus, services en
+      échec, journaux d'erreurs → rapport de situation minimisé.
+- [x] **Boucle agentique réelle** : outils `observe` (lecture seule, liste
+      blanche) / `act` (passé par `decide()`) / `ask_user` / `done`,
+      multi-tours, thinking adaptatif, prompt caching.
+- [x] **Exécuteur journalisé** : toute action consignée
+      (`/var/lib/liberty/journal.jsonl`), commande d'annulation conservée.
+- [x] **`libertyd --daemon`** : battement de cœur autonome périodique.
+- [x] **`lish`** : le shell en langage naturel (validation interactive,
+      `:journal`, `:undo`, `!` pour le shell brut).
+- [x] **Config système** : `/etc/liberty/liberty.toml` (profil, capacités,
+      modèle, rythme).
+- [x] **Politique de modèle** : découverte à l'exécution du Claude le plus
+      capable accessible au compte.
 
-## Phase 1 — « Hello, Liberty » bootable
-- [ ] Image disque minimale qui boote sous QEMU (UEFI).
-- [ ] Noyau Linux minimal configuré + init maison qui affiche une bannière.
-- [ ] Console texte fonctionnelle.
+**Démontrable :** une VM Debian devient Liberty en une commande ; l'esprit
+tourne en service, le shell répond en langage naturel.
+→ [`docs/INSTALL.md`](INSTALL.md)
 
-**Démontrable :** `make run` → la machine boote sur Liberty en console.
+## Phase 2 — L'esprit digne de confiance *(en cours)*
+- [ ] Flux OAuth complet (« se connecter avec son compte Anthropic »).
+- [ ] File de propositions consultable/validable depuis `lish`
+      (`:pending`, approuver/refuser ce que le démon a mis en attente).
+- [ ] Fenêtre d'annulation effective pour les actions externes (envoi différé).
+- [ ] Modèle de menace prompt-injection (`docs/SECURITY.md`) : les sorties de
+      capteurs sont des *données*, jamais des instructions.
+- [ ] Mémoire persistante de l'esprit entre battements (contexte machine,
+      préférences apprises) — locale et chiffrée.
+- [ ] Réflexes locaux : pré-tri Haiku / heuristiques avant d'appeler l'esprit
+      (coût et latence).
+- [ ] CI : build + tests à chaque commit.
 
-## Phase 2 — Userland Rust de base
-- [ ] Init/superviseur en Rust (PID 1) : démarrage parallèle + supervision.
-- [ ] Quelques services système de base (logs, IPC, device manager léger).
-- [ ] Premier outil en ligne de commande « libertyctl ».
+**Démontrable :** le démon tourne des jours entiers, ses propositions
+s'examinent et s'approuvent depuis `lish`, rien d'irréversible ne part seul.
 
-**Démontrable :** services supervisés, redémarrage propre d'un service tué.
+## Phase 3 — L'image Liberty
+- [ ] Image disque bootable (UEFI) : Linux minimal + init léger + libertyd +
+      lish en autologin — plus de Debian à installer.
+- [ ] `liberty-image build` reproductible (mkosi ou équivalent).
+- [ ] Mises à jour atomiques avec rollback.
 
-## Phase 3 — Affichage et shell
-- [ ] Compositeur Wayland minimal (une fenêtre, un curseur, du rendu GPU).
-- [ ] Shell Liberty : barre universelle + lanceur d'apps.
+**Démontrable :** `make image && make run` → QEMU boote directement dans
+Liberty.
 
-**Démontrable :** bureau épuré qui s'affiche et lance une app simple.
+## Phase 4 — Les yeux et les mains élargis
+- [ ] Bus d'intents pour applications : une app déclare ses actions,
+      `libertyd` les expose à l'esprit comme outils.
+- [ ] Domaines supplémentaires : réseau (wifi), paquets, courriel réel.
+- [ ] Streaming SSE dans `lish` (réponse au fil de l'eau).
 
-## Phase 4 — `libertyd`, la couche IA
-- [x] **Prototype de la boucle de décision** (inversion, niveaux d'autonomie,
-      règle réversible/local, capacités, jugement calibré, journal). Voir
-      `services/libertyd/`.
-- [ ] Service `libertyd` avec runtime d'inférence local (modèle léger).
-- [ ] Barre universelle → langage naturel → action système simple
-      (ex. « ouvre le dossier Documents », « règle la luminosité »).
-- [ ] Modèle de capacités appliqué aux actions IA (réel, plus simulé).
+**Démontrable :** « trie ces photos par date » exécuté via une app dédiée.
 
-**Démontrable :** `cargo run -p libertyd` montre déjà l'IA qui initie, décide
-selon l'autonomie, et se fait borner par l'OS. Ensuite : on tape une phrase,
-le système agit — 100 % local.
+## Phase 5 — Le visage
+- [ ] Compositeur Wayland minimal (Rust, piste smithay).
+- [ ] Shell graphique : barre universelle en langage naturel, fenêtres
+      épurées — `lish` devient une surface, pas seulement un terminal.
 
-## Phase 5 — Bus d'intents pour applications
-- [ ] SDK : une app déclare des actions ; `libertyd` les découvre/compose.
-- [ ] App de démonstration (gestionnaire de fichiers) pilotable par IA.
+**Démontrable :** un bureau sobre où la barre universelle remplace menus et
+icônes.
 
-**Démontrable :** « trie ces photos par date » exécuté via l'app.
-
-## Phase 6 — Paquets, mises à jour atomiques, sécurité
-- [ ] Gestionnaire de paquets déclaratif + rollback atomique.
-- [ ] Sandbox des apps par défaut.
-
-**Démontrable :** installer/supprimer une app et revenir en arrière sans
-casser le système.
-
-## Phase 7+ — Vers l'utilisable au quotidien
-- Réseau (wifi/ethernet) via UI épurée.
+## Phase 6+ — Vers l'utilisable au quotidien
+- Multi-utilisateur, trousseau chiffré, sandbox par défaut.
 - Audio, énergie, multi-écrans.
-- Écosystème d'applications natives.
-- Optionnel : couche de compatibilité pour apps Linux existantes.
+- Écosystème d'applications natives parlant le bus d'intents.
 
 ---
 
 ## Comment on travaille
 
-- **Petits jalons vérifiables.** Chaque tâche doit booter/tourner.
+- **Petits jalons vérifiables.** Chaque tâche doit tourner pour de vrai.
 - **Documenter en avançant.** Les décisions importantes → `docs/`.
-- **Mesurer.** Démarrage, RAM, latence IA suivis dès que possible.
-- **Itérer l'architecture.** Rien n'est gravé : on challenge les choix.
+- **La sécurité est invariante.** Quelle que soit la phase : capacités
+  d'abord, journal toujours, l'OS au-dessus du modèle.

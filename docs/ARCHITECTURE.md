@@ -48,16 +48,24 @@
   d'activation. Léger, rapide, prévisible.
 
 ### `libertyd` — couche IA système (`services/libertyd/`)
-- **L'esprit : Claude** (`claude-opus-4-8` via l'API Anthropic, compte lié à
-  la session). Les **réflexes** : modèles légers (`claude-haiku-4-5`) et/ou
-  locaux pour le pré-filtrage et le mode hors-ligne. Backend interchangeable
-  via le trait `Brain`. Voir [`AI.md`](AI.md).
-- **Bus d'intents = tool use Claude** : les apps déclarent des outils/actions ;
-  `libertyd` les expose à Claude comme outils API, qui les compose pour
-  répondre aux requêtes en langage naturel.
+- **L'esprit : Claude** (Fable 5 par défaut — découverte à l'exécution du
+  modèle le plus capable accessible au compte). Les **réflexes** : modèles
+  légers et/ou locaux pour le pré-filtrage et le mode hors-ligne. Voir
+  [`AI.md`](AI.md).
+- **Boucle agentique** (`agent.rs`) : outils `observe` (lecture seule, liste
+  blanche) · `act` (modification, passée par `decide()`) · `ask_user` ·
+  `done`, en multi-tours. Le même moteur sert le démon (`--daemon`, battement
+  de cœur autonome) et le shell (`lish`, interactif).
+- **Capteurs** (`sensors.rs`) : charge, mémoire, disques, processus, services
+  en échec, journaux — condensés localement en rapport de situation minimisé.
 - **Garde-fou de capacités** : toute action IA — y compris décidée par
-  Claude — passe par le contrôle de capacités appliqué par l'OS.
-- **Mémoire/contexte** : stockage local chiffré du contexte utilisateur.
+  Claude — passe par le contrôle de capacités appliqué par l'OS
+  (`decision.rs`, `effects.rs`), configuré dans `/etc/liberty/liberty.toml`.
+- **Exécuteur + journal** (`executor.rs`, `journal.rs`) : exécution
+  journalisée (`/var/lib/liberty/journal.jsonl`), commandes d'annulation
+  conservées (`:undo` dans lish).
+- **Bus d'intents = tool use Claude** (à venir) : les apps déclareront des
+  actions que `libertyd` exposera à l'esprit comme outils supplémentaires.
 - **Confidentialité** : minimisation (pré-filtrage local), appels réseau
   journalisés, consultables et révocables ; mode dégradé hors-ligne.
 

@@ -109,52 +109,65 @@ connu : une clé API résiduelle dans l'environnement masque le profil OAuth —
   d'autonomie, capacités accordées, outils) est stable et long → mis en
   cache (`cache_control: ephemeral`), le contexte volatil (situations du
   moment) arrive après. Latence et coût réduits massivement.
-- **Le jugement calibré devient réel.** Au lieu d'un `confidence` codé en
-  dur (prototype), Claude évalue chaque situation et choisit lui-même entre
-  *agir*, *proposer*, ou *poser une question précise* — via des outils
-  dédiés (`act`, `propose`, `ask_user`). La couche `decide()` de l'OS reste
-  le filet de sécurité au-dessous.
+- **Le jugement calibré est réel.** Claude évalue chaque situation et choisit
+  lui-même entre *observer*, *agir*, *poser une question précise* ou
+  *conclure* — via quatre outils (`observe`, `act`, `ask_user`, `done`),
+  en boucle multi-tours (voir `services/libertyd/src/agent.rs`) :
+  - `observe` : commande en **lecture seule**, liste blanche stricte côté OS
+    (`executor::is_read_only`) — l'esprit vérifie l'état réel avant d'agir ;
+  - `act` : commande qui modifie le système, déclarée avec ses effets, sa
+    réversibilité, sa commande d'annulation et sa confiance — l'OS la passe
+    par `decide()` et peut l'exécuter, la proposer à l'humain, la consigner
+    en attente (mode démon) ou la refuser ;
+  - `ask_user` : question courte quand la décision appartient à l'humain
+    (dans `lish`, elle est posée dans le terminal ; en démon, consignée) ;
+  - `done` : bilan bref et factuel, journalisé.
+  La couche `decide()` de l'OS reste le filet de sécurité au-dessous.
 
 ## Premiers tests sur ta machine
 
-Le binaire `libertyd` se connecte vraiment à ton compte Anthropic. Le
-transport réseau est derrière le feature `claude` (le build par défaut reste
-sans dépendance et hors-ligne).
-
-**Étape 1 — première connexion par clé API** (le plus rapide à tester) :
+Le transport réseau est derrière le feature `claude` (le build par défaut
+reste léger et hors-ligne).
 
 ```sh
 # 1. Récupère une clé API sur console.anthropic.com (ton compte Anthropic)
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# 2. Lance libertyd avec le transport réseau activé
 cd services/libertyd
-cargo run --features claude
+cargo run --features claude -- --once     # un battement de cœur réel
+cargo run --features claude -- --daemon   # la boucle autonome continue
+cargo run --features claude --bin lish    # le shell en langage naturel
+cargo run -- --demo                       # hors-ligne : la boucle de décision
 ```
 
-Au démarrage, `libertyd` :
-1. **vérifie la connexion** à Anthropic (liste tes modèles accessibles),
-2. **choisit Fable 5** (ou le plus capable disponible),
-3. **envoie un rapport de situation** et affiche les décisions que *Claude*
-   prend réellement (agir / proposer / te poser une question), filtrées par
-   la boucle de sécurité de l'OS (capacités, autonomie).
+À chaque battement, `libertyd` :
+1. **vérifie la connexion** à Anthropic et **choisit le modèle le plus
+   capable** accessible à ton compte (Fable 5 aujourd'hui),
+2. **lit ses capteurs locaux** (charge, mémoire, disques, services en échec,
+   journaux d'erreurs) et en fait un rapport de situation minimisé,
+3. laisse l'esprit **observer / agir / questionner / conclure** — chaque
+   action filtrée par `decide()` (capacités, autonomie) et consignée au
+   journal (`/var/lib/liberty/journal.jsonl` ou `~/.liberty/`).
 
-Sans clé, ou sans `--features claude`, il bascule sur la simulation
-hors-ligne — tu peux donc explorer la logique sans compte.
+Pour l'installation complète dans une VM (service systemd, lish en shell de
+session), voir [`INSTALL.md`](INSTALL.md).
 
-> Note : la « connexion à Anthropic au démarrage de l'OS » est ici réduite à
-> ce démon. À terme, elle fera partie de l'ouverture de session Liberty
-> (flux OAuth « se connecter avec son compte Anthropic »).
+> Note : la « connexion à Anthropic au démarrage de l'OS » passe aujourd'hui
+> par une clé API. À terme, elle fera partie de l'ouverture de session
+> Liberty (flux OAuth « se connecter avec son compte Anthropic »).
 
 ## Statut d'implémentation
 
 - ✅ Boucle de décision (`decide()`) avec capacités, autonomie, réversibilité.
-- ✅ Trait `Brain` interchangeable (`SimulatedBrain` hors-ligne, `ClaudeBrain`).
-- ✅ Authentification (clé API → `x-api-key` ; OAuth → `Bearer` + en-tête beta).
-- ✅ **Transport HTTP réel** vers `/v1/messages` et `/v1/models` (feature
-  `claude`) : connexion au démarrage, tool use, parsing des décisions.
+- ✅ Authentification (clé API → `x-api-key` ; OAuth → `Bearer` + en-tête
+  beta ; fichier de clé système `/etc/liberty/anthropic.key`).
+- ✅ **Boucle agentique multi-tours** (`observe`/`act`/`ask_user`/`done`),
+  thinking adaptatif, prompt caching, reprise sur erreurs transitoires.
+- ✅ **Capteurs locaux** + rapport de situation minimisé.
+- ✅ **Exécuteur** : liste blanche lecture seule, actions journalisées, undo.
+- ✅ **Démon** (`--daemon`) et **shell** (`lish`) sur la même boucle.
 - ✅ Politique de modèle (Fable 5 + découverte API + override).
 - ⬜ Flux OAuth complet (« login compte Anthropic » avec navigateur).
-- ⬜ Streaming SSE dans la barre universelle.
+- ⬜ Streaming SSE dans `lish`.
 - ⬜ Réflexes locaux (classification Haiku / modèle embarqué).
 - ⬜ Modèle de menace (prompt injection) — `docs/SECURITY.md`.

@@ -1,0 +1,17 @@
+[Unit]
+Description=libertyd — l'esprit de Liberty OS
+Documentation=https://github.com/Alcegobe/Liberty
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/libertyd --daemon
+Restart=always
+RestartSec=10
+Environment=LIBERTY_CONFIG=/etc/liberty/liberty.toml
+StateDirectory=liberty
+Environment=LIBERTY_STATE_DIR=/var/lib/liberty
+
+[Install]
+WantedBy=multi-user.target
