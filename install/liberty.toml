@@ -1,0 +1,29 @@
+# Liberty OS — configuration système de l'esprit (libertyd + lish)
+# Emplacement : /etc/liberty/liberty.toml
+
+# Modèle forcé. Vide = automatique : Liberty interroge l'API Anthropic et
+# choisit le modèle le plus capable auquel le compte a accès (Fable 5
+# aujourd'hui, ses successeurs demain, sans rien changer ici).
+model = ""
+
+# Période du battement de cœur du démon, en secondes (minimum 30).
+heartbeat_secs = 300
+
+# Profil d'autonomie : "prudent" | "confiance" | "manuel"
+#   prudent   : système autonome, fichiers sur proposition, communication manuelle
+#   confiance : tout autonome (réversible → silencieux ; externe → fenêtre d'annulation)
+#   manuel    : l'esprit suggère, l'humain fait
+profile = "prudent"
+
+# Capacités accordées à l'esprit. C'est le garde-fou matériel : tout effet
+# non couvert ici est refusé par l'OS, quelle que soit la décision de l'IA.
+[capabilities]
+files = ["~", "/tmp", "/var/cache"]
+process = true
+power = true
+email = false
+network = []   # hôtes autorisés pour des actions réseau, ex. ["exemple.com"]
+
+[credentials]
+# Fichier contenant la clé API Anthropic (une seule ligne, mode 600).
+api_key_file = "/etc/liberty/anthropic.key"

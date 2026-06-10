@@ -1,0 +1,16 @@
+# Rust
+/target
+**/target
+*.rs.bk
+
+# Artefacts de build OS
+/build
+*.img
+*.iso
+*.qcow2
+*.elf
+*.bin
+
+# Divers
+.DS_Store
+*.log
