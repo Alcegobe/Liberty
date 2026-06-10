@@ -11,6 +11,8 @@
 #   ANTHROPIC_API_KEY=sk-ant-...   clé API (sinon demandée interactivement)
 #   LIBERTY_REF=main               branche/tag à installer
 #   LIBERTY_USER=<login>           utilisateur dont le shell devient lish
+#   LIBERTY_AUTOLOGIN=1            connexion automatique de LIBERTY_USER sur
+#                                  la console tty1 (la machine boote dans lish)
 
 set -eu
 
@@ -76,6 +78,16 @@ grep -qx /usr/local/bin/lish /etc/shells || echo /usr/local/bin/lish >> /etc/she
 if [ -n "${LIBERTY_USER:-}" ] && id "$LIBERTY_USER" >/dev/null 2>&1; then
     chsh -s /usr/local/bin/lish "$LIBERTY_USER"
     say "shell de $LIBERTY_USER → lish"
+    if [ -n "${LIBERTY_AUTOLOGIN:-}" ]; then
+        mkdir -p /etc/systemd/system/getty@tty1.service.d
+        cat > /etc/systemd/system/getty@tty1.service.d/liberty.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $LIBERTY_USER --noclear %I \$TERM
+EOF
+        systemctl daemon-reload
+        say "autologin console : la machine boote directement dans lish"
+    fi
 fi
 
 echo
